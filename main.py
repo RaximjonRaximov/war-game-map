@@ -311,11 +311,19 @@ class Game:
             await self.broadcast_state()
 
 
-game = Game()
+rooms = {}
+
+
+def get_or_create_game(room: str):
+    if room not in rooms:
+        rooms[room] = Game()
+    return rooms[room]
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    room = websocket.query_params.get("room", "default")
+    game = get_or_create_game(room)
     await websocket.accept()
     msg = await game.add_connection(websocket)
     await websocket.send_json(msg)
