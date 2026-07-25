@@ -53,10 +53,12 @@ class Game:
         async with self.lock:
             self.id_counter += 1
             if len(self.players) < MAX_PLAYERS:
-                color = COLORS[len(self.players)]
+                used_colors = {p["color"] for p in self.players}
+                slot = next(i for i in range(MAX_PLAYERS) if COLORS[i] not in used_colors)
+                color = COLORS[slot]
                 player = {
                     "id": self.id_counter,
-                    "name": f"Player {len(self.players) + 1}",
+                    "name": f"Player {slot + 1}",
                     "color": color,
                     "country_id": None,
                     "ws": ws,
