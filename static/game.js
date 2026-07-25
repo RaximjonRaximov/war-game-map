@@ -1,6 +1,3 @@
-const WORLD_W = 1280;
-const WORLD_H = 697;
-
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('status');
@@ -9,10 +6,10 @@ const joinBtn = document.getElementById('join-room');
 const hudEl = document.getElementById('hud');
 const healthBar = document.getElementById('health-bar');
 const statsEl = document.getElementById('stats');
+const timerEl = document.getElementById('timer');
+const scoreEl = document.getElementById('score');
 const leaderboardEl = document.getElementById('leaderboard');
-
-const bg = new Image();
-bg.src = 'world_map.png';
+const winnerEl = document.getElementById('winner');
 
 const keys = {};
 let mouse = { x: 0, y: 0 };
@@ -20,45 +17,40 @@ let shooting = false;
 let currentRoom = 'default';
 let ws = null;
 let state = null;
+let mapData = null;
 let myId = null;
 let myColor = null;
-let connected = false;
 let lastInput = { dx: 0, dy: 0, angle: 0, shoot: false };
 
-function colorHex(color) {
-  if (color === 'blue') return '#1976d2';
-  if (color === 'red') return '#d32f2f';
-  if (color === 'green') return '#388e3c';
-  if (color === 'purple') return '#7b1fa2';
-  if (color === 'orange') return '#f57c00';
-  return '#616161';
-}
-
-function getScale() {
-  const scaleX = canvas.width / WORLD_W;
-  const scaleY = canvas.height / WORLD_H;
-  return Math.min(scaleX, scaleY);
-}
-
-function getOffset() {
-  const s = getScale();
-  return {
-    x: (canvas.width - WORLD_W * s) / 2,
-    y: (canvas.height - WORLD_H * s) / 2,
-  };
-}
+const CAM_SCALE = 1.5;
 
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 }
 
-function worldPos(clientX, clientY) {
-  const s = getScale();
-  const off = getOffset();
+function colorHex(color) {
+  if (color === 'blue') return '#2196f3';
+  if (color === 'red') return '#f44336';
+  return '#616161';
+}
+
+function getCamera(me) {
+  if (!mapData || !me) return { x: 0, y: 0 };
+  const w = mapData.cols * mapData.tile;
+  const h = mapData.rows * mapData.tile;
+  const halfW = (canvas.width / 2) / CAM_SCALE;
+  const halfH = (canvas.height / 2) / CAM_SCALE;
   return {
-    x: (clientX - off.x) / s,
-    y: (clientY - off.y) / s,
+    x: Math.max(halfW, Math.min(me.x, w - halfW)),
+    y: Math.max(halfH, Math.min(me.y, h - halfH)),
+  };
+}
+
+function screenToWorld(sx, sy, cam) {
+  return {
+    x: (sx - (canvas.width / 2 - cam.x * CAM_SCALE)) / CAM_SCALE,
+    y: (sy - (canvas.height / 2 - cam.y * CAM_SCALE)) / CAM_SCALE,
   };
 }
 
@@ -78,7 +70,6 @@ function connect() {
 
   ws.onopen = () => {
     statusEl.textContent = 'Ulandi — xona: ' + currentRoom;
-    connected = true;
   };
 
   ws.onmessage = (event) => {
@@ -88,6 +79,9 @@ function connect() {
       myColor = msg.color;
       hudEl.classList.remove('hidden');
     }
+    if (msg.type === 'map') {
+      mapData = msg;
+    }
     if (msg.type === 'state') {
       state = msg.state;
     }
@@ -95,7 +89,6 @@ function connect() {
 
   ws.onclose = () => {
     statusEl.textContent = 'Ulanish uzildi — qayta ulanmoqda...';
-    connected = false;
     myId = null;
     myColor = null;
     hudEl.classList.add('hidden');
@@ -117,8 +110,9 @@ function updateInput() {
 
   const me = state ? state.players.find((p) => p.id === myId) : null;
   let angle = lastInput.angle;
-  if (me) {
-    const pos = worldPos(mouse.x, mouse.y);
+  if (me && mapData) {
+    const cam = getCamera(me);
+    const pos = screenToWorld(mouse.x, mouse.y, cam);
     angle = Math.atan2(pos.y - me.y, pos.x - me.x);
   }
 
@@ -134,21 +128,46 @@ function updateInput() {
   }
 }
 
+function drawMap(cam) {
+  if (!mapData) return;
+  const tile = mapData.tile;
+  const cols = mapData.cols;
+  const rows = mapData.rows;
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, cols * tile, rows * tile);
+
+  for (let y = 0; y < rows; y++) {
+    const row = mapData.tiles[y];
+    for (let x = 0; x < cols; x++) {
+      const ch = row[x];
+      const px = x * tile;
+      const py = y * tile;
+      if (ch === '#') {
+        ctx.fillStyle = '#444';
+        ctx.fillRect(px, py, tile, tile);
+        ctx.strokeStyle = '#555';
+        ctx.strokeRect(px, py, tile, tile);
+      } else {
+        ctx.fillStyle = '#222';
+        ctx.fillRect(px, py, tile, tile);
+        if (ch === 'A' || ch === 'B') {
+          ctx.fillStyle = ch === 'A' ? 'rgba(33,150,243,0.15)' : 'rgba(244,67,54,0.15)';
+          ctx.fillRect(px, py, tile, tile);
+        }
+      }
+    }
+  }
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const s = getScale();
-  const off = getOffset();
-
-  if (bg.complete && bg.naturalWidth) {
-    ctx.drawImage(bg, off.x, off.y, WORLD_W * s, WORLD_H * s);
-  } else {
-    ctx.fillStyle = '#0b1020';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
+  const me = state ? state.players.find((p) => p.id === myId) : null;
+  const cam = getCamera(me);
 
   ctx.save();
-  ctx.translate(off.x, off.y);
-  ctx.scale(s, s);
+  ctx.setTransform(CAM_SCALE, 0, 0, CAM_SCALE, canvas.width / 2 - cam.x * CAM_SCALE, canvas.height / 2 - cam.y * CAM_SCALE);
+  drawMap(cam);
 
   if (state) {
     for (const b of state.bullets) {
@@ -179,36 +198,61 @@ function draw() {
       ctx.stroke();
 
       ctx.fillStyle = '#000';
-      ctx.fillRect(p.x - 16, p.y - 22, 32, 5);
+      ctx.fillRect(p.x - 16, p.y - 24, 32, 5);
       ctx.fillStyle = p.health > 50 ? '#4caf50' : p.health > 25 ? '#ff9800' : '#f44336';
-      ctx.fillRect(p.x - 16, p.y - 22, (p.health / 100) * 32, 5);
+      ctx.fillRect(p.x - 16, p.y - 24, (p.health / 100) * 32, 5);
 
       ctx.fillStyle = '#fff';
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(p.name, p.x, p.y - 26);
+      ctx.fillText(p.name, p.x, p.y - 28);
 
       ctx.globalAlpha = 1;
     }
   }
 
   ctx.restore();
+
+  // crosshair
+  ctx.strokeStyle = '#ffeb3b';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(mouse.x - 8, mouse.y);
+  ctx.lineTo(mouse.x + 8, mouse.y);
+  ctx.moveTo(mouse.x, mouse.y - 8);
+  ctx.lineTo(mouse.x, mouse.y + 8);
+  ctx.stroke();
 }
 
 function updateHUD() {
-  if (!state || myId === null) return;
+  if (!state) return;
   const me = state.players.find((p) => p.id === myId);
-  if (!me) return;
-  healthBar.style.width = `${me.health}%`;
-  statsEl.textContent = `${me.kills} ta o'ldirish / ${me.deaths} ta o'lim`;
+  if (me) {
+    healthBar.style.width = `${me.health}%`;
+    statsEl.textContent = `${me.kills} / ${me.deaths}`;
+  }
+
+  const minutes = Math.floor(state.time_left / 60).toString().padStart(2, '0');
+  const seconds = (state.time_left % 60).toString().padStart(2, '0');
+  timerEl.textContent = `${minutes}:${seconds}`;
+  scoreEl.innerHTML = `<span class="ct">CT ${state.scores.ct}</span> : <span class="t">${state.scores.t} T</span>`;
 
   const sorted = [...state.players].sort((a, b) => b.kills - a.kills);
   let html = '<h3>Tablo</h3>';
   for (const p of sorted) {
     const mark = p.id === myId ? '▸ ' : '';
-    html += `<div class="row"><span>${mark}${p.name}</span><span>${p.kills}</span></div>`;
+    html += `<div class="row"><span style="color:${colorHex(p.color)}">${mark}${p.name}</span><span>${p.kills}</span></div>`;
   }
   leaderboardEl.innerHTML = html;
+
+  if (state.phase === 'over') {
+    winnerEl.classList.remove('hidden');
+    const teamName = state.winner === 'ct' ? 'CT jamoasi' : state.winner === 't' ? 'T jamoasi' : "Durang";
+    winnerEl.textContent = `${teamName} g'olib!`;
+    if (state.winner === 'draw') winnerEl.textContent = 'Durang!';
+  } else {
+    winnerEl.classList.add('hidden');
+  }
 }
 
 function loop() {
@@ -253,10 +297,6 @@ function init() {
     const room = roomInput.value.trim() || 'default';
     location.search = `?room=${encodeURIComponent(room)}`;
   });
-
-  bg.onload = () => {
-    draw();
-  };
 
   connect();
   requestAnimationFrame(loop);

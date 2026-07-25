@@ -18,6 +18,7 @@ body {
   width: 100vw;
   height: 100vh;
   display: block;
+  cursor: crosshair;
 }
 
 #ui {
@@ -38,14 +39,14 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.65);
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.7);
   border-bottom: 1px solid #333;
 }
 
 h1 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   color: #90caf9;
 }
 
@@ -81,8 +82,26 @@ button:hover {
 #status {
   font-weight: bold;
   color: #ffd54f;
-  flex: 1;
-  text-align: right;
+}
+
+#timer {
+  font-weight: bold;
+  color: #fff;
+  font-family: monospace;
+  font-size: 1rem;
+}
+
+#score {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+#score .ct {
+  color: #2196f3;
+}
+
+#score .t {
+  color: #f44336;
 }
 
 #instructions {
@@ -99,7 +118,7 @@ button:hover {
   position: absolute;
   bottom: 14px;
   left: 14px;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   padding: 10px 14px;
   border-radius: 6px;
 }
@@ -130,8 +149,8 @@ button:hover {
   position: absolute;
   top: 70px;
   right: 14px;
-  min-width: 140px;
-  background: rgba(0, 0, 0, 0.6);
+  min-width: 160px;
+  background: rgba(0, 0, 0, 0.7);
   border: 1px solid #333;
   border-radius: 6px;
   padding: 8px 12px;
@@ -152,6 +171,22 @@ button:hover {
   padding: 2px 0;
 }
 
+#winner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85);
+  border: 2px solid #ffd54f;
+  border-radius: 8px;
+  padding: 20px 40px;
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #ffd54f;
+  text-align: center;
+  pointer-events: none;
+}
+
 .hidden {
   display: none !important;
 }
@@ -162,7 +197,7 @@ button:hover {
   }
 
   h1 {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
 
   #instructions {

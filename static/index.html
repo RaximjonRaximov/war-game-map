@@ -3,28 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dunyo Urushi — Piyoda askar</title>
-  <link rel="stylesheet" href="style.css?v=1" />
+  <title>Dunyo Urushi — 5v5 Jamoa Jangi</title>
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
   <div id="ui">
     <div id="top-bar">
-      <h1>Dunyo Urushi</h1>
+      <h1>5v5 Jamoa Jangi</h1>
       <div id="lobby">
         <label for="room-code">Xona:</label>
         <input id="room-code" type="text" value="default" />
         <button id="join-room">Qo'shil</button>
       </div>
       <div id="status">Ulanmoqda...</div>
+      <div id="timer">03:00</div>
+      <div id="score"><span class="ct">CT 0</span> : <span class="t">0 T</span></div>
     </div>
-    <div id="instructions">WASD / strelkalar — harakatlanish. Sichqoncha — yo'nalish. SPACE yoki CLICK — o'q otish.</div>
+    <div id="instructions">WASD / strelkalar — harakatlanish. Sichqoncha — nishon. SPACE yoki CLICK — o'q otish. Maqsad: dushman jamoasini yengish.</div>
     <div id="hud" class="hidden">
       <div id="health-wrap"><div id="health-bar"></div></div>
-      <div id="stats">0 ta o'ldirish / 0 ta o'lim</div>
+      <div id="stats">0 / 0</div>
     </div>
     <div id="leaderboard"></div>
+    <div id="winner" class="hidden"></div>
   </div>
   <canvas id="game"></canvas>
-  <script src="game.js?v=1"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>
