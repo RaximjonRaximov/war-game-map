@@ -174,7 +174,7 @@ class Game:
         country["armies"] = 12
         player["country_id"] = country["id"]
         await self.send_event(f"{player['name']} chose {country['name']}")
-        if all(p["country_id"] for p in self.players):
+        if len(self.players) >= 2 and all(p["country_id"] for p in self.players):
             await self._start_game()
 
     async def _handle_start_solo(self, ws: WebSocket):
@@ -295,6 +295,7 @@ class Game:
             owned = [c for c in self.countries if c["team"] == player["color"] and c["armies"] > 1]
             if not owned:
                 await self._do_end_turn()
+                await self.broadcast_state()
                 return
             random.shuffle(owned)
             for from_c in owned:
@@ -307,6 +308,7 @@ class Game:
                         asyncio.create_task(self._ai_loop())
                     return
             await self._do_end_turn()
+            await self.broadcast_state()
 
 
 game = Game()
