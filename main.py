@@ -100,7 +100,7 @@ class Game:
     def get_state(self):
         return {
             "phase": self.phase,
-            "turn": self.players[self.turn_index]["id"] if self.players and 0 <= self.turn_index < len(self.players) else None,
+            "turn": self.players[self.turn_index]["id"] if self.phase == "play" and self.players and 0 <= self.turn_index < len(self.players) else None,
             "winner": self.winner,
             "countries": [{"id": c["id"], "team": c["team"], "armies": c["armies"]} for c in self.countries],
             "players": [{"id": p["id"], "name": p["name"], "color": p["color"], "country_id": p["country_id"]} for p in self.players],
@@ -120,6 +120,8 @@ class Game:
                 pass
 
     async def handle_action(self, ws: WebSocket, data):
+        if not any(p["ws"] is ws for p in self.players):
+            return
         async with self.lock:
             action = data.get("type")
             if action == "select":
