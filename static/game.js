@@ -24,7 +24,7 @@ const RAW_COUNTRIES = [
 
 const countryById = new Map(RAW_COUNTRIES.map((c) => [c.id, c]));
 
-let canvas, ctx, statusEl, infoEl, logEl, endBtn, restartBtn;
+let canvas, ctx, statusEl, infoEl, logEl, endBtn, soloBtn, restartBtn;
 let ws;
 let state = null;
 let serverById = new Map();
@@ -96,10 +96,12 @@ function init() {
   infoEl = document.getElementById('info');
   logEl = document.getElementById('log');
   endBtn = document.getElementById('end-turn');
+  soloBtn = document.getElementById('solo');
   restartBtn = document.getElementById('restart');
 
   canvas.addEventListener('pointerdown', handlePointer);
   endBtn.addEventListener('click', () => send({ type: 'end_turn' }));
+  soloBtn.addEventListener('click', () => send({ type: 'start_solo' }));
   restartBtn.addEventListener('click', () => send({ type: 'restart' }));
   window.addEventListener('beforeunload', () => { if (ws) ws.close(); });
   window.addEventListener('pagehide', () => { if (ws) ws.close(); });
@@ -169,17 +171,24 @@ function updateUI() {
   const me = state.players.find((p) => p.id === myId);
 
   if (state.phase === 'select') {
-    const waiting = state.players.filter((p) => !p.country_id).length;
     statusEl.textContent = `Choose your country — ${state.players.length}/2 players`;
-    if (!me) {
-      infoEl.textContent = 'Waiting for an available slot...';
-    } else if (!me.country_id) {
-      infoEl.textContent = 'Click any neutral country to play as it (for example Russia).';
-    } else {
-      infoEl.textContent = 'Waiting for opponent to choose a country...';
-    }
     endBtn.classList.add('hidden');
     restartBtn.classList.add('hidden');
+    soloBtn.classList.add('hidden');
+    if (!me) {
+      infoEl.textContent = 'Waiting for an available slot...';
+      return;
+    }
+    if (!me.country_id) {
+      infoEl.textContent = 'Click any neutral country to play as it (for example Russia), or play vs AI.';
+      soloBtn.classList.add('hidden');
+    } else {
+      infoEl.textContent = 'Waiting for opponent to choose a country...';
+      if (state.players.length === 1) {
+        infoEl.textContent = 'Click Play vs AI to start a solo game.';
+        soloBtn.classList.remove('hidden');
+      }
+    }
     return;
   }
 
@@ -194,6 +203,7 @@ function updateUI() {
       infoEl.textContent = 'Waiting for opponent...';
       endBtn.classList.add('hidden');
     }
+    soloBtn.classList.add('hidden');
     restartBtn.classList.add('hidden');
     return;
   }
@@ -208,6 +218,7 @@ function updateUI() {
       infoEl.textContent = 'Game over. Click Restart to play again.';
     }
     endBtn.classList.add('hidden');
+    soloBtn.classList.add('hidden');
     restartBtn.classList.remove('hidden');
   }
 }

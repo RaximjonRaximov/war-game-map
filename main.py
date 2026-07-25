@@ -34,7 +34,7 @@ COUNTRY_DATA = [
 ]
 
 COLORS = ["blue", "red", "green", "purple", "orange"]
-MAX_PLAYERS = 2
+MAX_HUMANS = 2
 
 
 class Game:
@@ -49,35 +49,43 @@ class Game:
         self.id_counter = 0
         self.lock = asyncio.Lock()
 
+    def _human_players(self):
+        return [p for p in self.players if not p.get("is_ai")]
+
+    def _next_color(self):
+        used = {p["color"] for p in self.players}
+        for c in COLORS:
+            if c not in used:
+                return c
+        return COLORS[0]
+
     async def add_connection(self, ws: WebSocket):
         async with self.lock:
             self.id_counter += 1
-            if len(self.players) < MAX_PLAYERS:
-                used_colors = {p["color"] for p in self.players}
-                slot = next(i for i in range(MAX_PLAYERS) if COLORS[i] not in used_colors)
-                color = COLORS[slot]
-                player = {
-                    "id": self.id_counter,
-                    "name": f"Player {slot + 1}",
-                    "color": color,
-                    "country_id": None,
-                    "ws": ws,
-                }
-                self.players.append(player)
-                return {
-                    "type": "assigned",
-                    "player_id": player["id"],
-                    "color": player["color"],
-                    "name": player["name"],
-                }
-            else:
+            if self.phase != "select" or len(self._human_players()) >= MAX_HUMANS:
                 self.spectators.append(ws)
-                return {"type": "spectator", "message": "Game is full; you are spectating."}
+                return {"type": "spectator", "message": "Game is full or already in progress; you are spectating."}
+            color = self._next_color()
+            slot = COLORS.index(color)
+            player = {
+                "id": self.id_counter,
+                "name": f"Player {slot + 1}",
+                "color": color,
+                "country_id": None,
+                "ws": ws,
+            }
+            self.players.append(player)
+            return {
+                "type": "assigned",
+                "player_id": player["id"],
+                "color": player["color"],
+                "name": player["name"],
+            }
 
     async def remove_connection(self, ws: WebSocket):
         async with self.lock:
             for p in list(self.players):
-                if p["ws"] is ws:
+                if p.get("ws") is ws:
                     self.players.remove(p)
                     await self._reset()
                     return
@@ -93,6 +101,8 @@ class Game:
         for c in self.countries:
             c["team"] = "neutral"
             c["armies"] = 0
+        # remove AI and reset humans for a fresh lobby
+        self.players = [p for p in self.players if not p.get("is_ai")]
         for p in self.players:
             p["country_id"] = None
         await self.broadcast_state()
@@ -132,12 +142,14 @@ class Game:
                 pass
 
     async def handle_action(self, ws: WebSocket, data):
-        if not any(p["ws"] is ws for p in self.players):
+        if not any(p.get("ws") is ws for p in self.players):
             return
         async with self.lock:
             action = data.get("type")
             if action == "select":
                 await self._handle_select(ws, data)
+            elif action == "start_solo":
+                await self._handle_start_solo(ws)
             elif action == "attack":
                 await self._handle_attack(ws, data)
             elif action == "end_turn":
@@ -149,18 +161,42 @@ class Game:
     async def _handle_select(self, ws: WebSocket, data):
         if self.phase != "select":
             return
-        player = next((p for p in self.players if p["ws"] is ws), None)
+        player = next((p for p in self.players if p.get("ws") is ws), None)
         if not player or player["country_id"]:
             return
         country = self.country_by_id.get(data.get("country"))
         if not country or country["team"] != "neutral":
             return
+        await self._do_select(player, country)
+
+    async def _do_select(self, player, country):
         country["team"] = player["color"]
         country["armies"] = 12
         player["country_id"] = country["id"]
         await self.send_event(f"{player['name']} chose {country['name']}")
         if all(p["country_id"] for p in self.players):
             await self._start_game()
+
+    async def _handle_start_solo(self, ws: WebSocket):
+        if self.phase != "select" or any(p.get("is_ai") for p in self.players):
+            return
+        human = next((p for p in self.players if p.get("ws") is ws), None)
+        if not human or not human["country_id"]:
+            return
+        self.id_counter += 1
+        ai = {
+            "id": self.id_counter,
+            "name": "AI",
+            "color": self._next_color(),
+            "country_id": None,
+            "ws": None,
+            "is_ai": True,
+        }
+        self.players.append(ai)
+        neutral = [c for c in self.countries if c["team"] == "neutral"]
+        if neutral:
+            country = random.choice(neutral)
+            await self._do_select(ai, country)
 
     async def _start_game(self):
         self.phase = "play"
@@ -172,23 +208,27 @@ class Game:
         await self._start_turn(0)
 
     async def _start_turn(self, idx):
-        player = self.players[idx]
+        if not self.players:
+            return
+        self.turn_index = idx % len(self.players)
+        player = self.players[self.turn_index]
         owned = [c for c in self.countries if c["team"] == player["color"]]
         if owned:
             reinforce = max(3, len(owned) // 2)
             for _ in range(reinforce):
                 random.choice(owned)["armies"] += 1
-        self.turn_index = idx
         await self.send_event(f"{player['name']}'s turn — received {max(3, len(owned) // 2)} reinforcements")
+        if player.get("is_ai"):
+            asyncio.create_task(self._ai_loop())
 
     async def _handle_attack(self, ws: WebSocket, data):
         if self.phase != "play":
             return
-        if not self.players or self.players[self.turn_index]["ws"] is not ws:
+        if not self.players or self.players[self.turn_index].get("ws") is not ws:
             return
-        player = self.players[self.turn_index]
-        from_id = data.get("from")
-        to_id = data.get("to")
+        await self._do_attack(self.players[self.turn_index], data.get("from"), data.get("to"))
+
+    async def _do_attack(self, player, from_id, to_id):
         from_c = self.country_by_id.get(from_id)
         to_c = self.country_by_id.get(to_id)
         if not from_c or not to_c:
@@ -234,10 +274,39 @@ class Game:
     async def _handle_end_turn(self, ws: WebSocket):
         if self.phase != "play" or not self.players:
             return
-        if self.players[self.turn_index]["ws"] is not ws:
+        if self.players[self.turn_index].get("ws") is not ws:
+            return
+        await self._do_end_turn()
+
+    async def _do_end_turn(self):
+        if self.phase != "play" or not self.players:
             return
         next_idx = (self.turn_index + 1) % len(self.players)
         await self._start_turn(next_idx)
+
+    async def _ai_loop(self):
+        await asyncio.sleep(1.2)
+        async with self.lock:
+            if self.phase != "play" or self.turn_index >= len(self.players):
+                return
+            player = self.players[self.turn_index]
+            if not player.get("is_ai"):
+                return
+            owned = [c for c in self.countries if c["team"] == player["color"] and c["armies"] > 1]
+            if not owned:
+                await self._do_end_turn()
+                return
+            random.shuffle(owned)
+            for from_c in owned:
+                targets = [c for c in self.countries if c["id"] in from_c["neighbors"] and c["team"] != player["color"]]
+                if targets and from_c["armies"] > 1:
+                    to_c = random.choice(targets)
+                    await self._do_attack(player, from_c["id"], to_c["id"])
+                    await self.broadcast_state()
+                    if self.phase == "play":
+                        asyncio.create_task(self._ai_loop())
+                    return
+            await self._do_end_turn()
 
 
 game = Game()
