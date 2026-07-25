@@ -119,6 +119,18 @@ class Game:
             except Exception:
                 pass
 
+    async def send_event(self, text: str):
+        for p in list(self.players):
+            try:
+                await p["ws"].send_json({"type": "event", "text": text})
+            except Exception:
+                pass
+        for s in list(self.spectators):
+            try:
+                await s.send_json({"type": "event", "text": text})
+            except Exception:
+                pass
+
     async def handle_action(self, ws: WebSocket, data):
         if not any(p["ws"] is ws for p in self.players):
             return
@@ -146,6 +158,7 @@ class Game:
         country["team"] = player["color"]
         country["armies"] = 12
         player["country_id"] = country["id"]
+        await self.send_event(f"{player['name']} chose {country['name']}")
         if all(p["country_id"] for p in self.players):
             await self._start_game()
 
@@ -155,9 +168,10 @@ class Game:
             if c["team"] == "neutral":
                 c["armies"] = random.randint(2, 4)
         self.turn_index = 0
-        self._start_turn(0)
+        await self.send_event("Game started! Conquer all countries to win.")
+        await self._start_turn(0)
 
-    def _start_turn(self, idx):
+    async def _start_turn(self, idx):
         player = self.players[idx]
         owned = [c for c in self.countries if c["team"] == player["color"]]
         if owned:
@@ -165,6 +179,7 @@ class Game:
             for _ in range(reinforce):
                 random.choice(owned)["armies"] += 1
         self.turn_index = idx
+        await self.send_event(f"{player['name']}'s turn — received {max(3, len(owned) // 2)} reinforcements")
 
     async def _handle_attack(self, ws: WebSocket, data):
         if self.phase != "play":
@@ -186,7 +201,12 @@ class Game:
             return
         if from_c["armies"] <= 1:
             return
+        before = to_c["team"]
         self._battle(from_c, to_c)
+        if to_c["team"] != before:
+            await self.send_event(f"{player['name']} captured {to_c['name']} from {from_c['name']}")
+        else:
+            await self.send_event(f"{player['name']} attacked {to_c['name']} from {from_c['name']} — {to_c['name']} holds with {to_c['armies']} armies")
         self._check_win()
 
     def _battle(self, attacker, defender):
@@ -208,6 +228,8 @@ class Game:
         if len(teams) == 1:
             self.phase = "over"
             self.winner = next(iter(teams))
+            winner_name = next((p["name"] for p in self.players if p["color"] == self.winner), self.winner)
+            asyncio.create_task(self.send_event(f"{winner_name} conquered the world!"))
 
     async def _handle_end_turn(self, ws: WebSocket):
         if self.phase != "play" or not self.players:
@@ -215,7 +237,7 @@ class Game:
         if self.players[self.turn_index]["ws"] is not ws:
             return
         next_idx = (self.turn_index + 1) % len(self.players)
-        self._start_turn(next_idx)
+        await self._start_turn(next_idx)
 
 
 game = Game()
