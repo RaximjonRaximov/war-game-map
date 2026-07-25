@@ -88,6 +88,8 @@ function init() {
   canvas.addEventListener('pointerdown', handlePointer);
   endBtn.addEventListener('click', () => send({ type: 'end_turn' }));
   restartBtn.addEventListener('click', () => send({ type: 'restart' }));
+  window.addEventListener('beforeunload', () => { if (ws) ws.close(); });
+  window.addEventListener('pagehide', () => { if (ws) ws.close(); });
 
   connect();
   requestAnimationFrame(draw);
@@ -136,15 +138,26 @@ function updateUI() {
     return;
   }
 
+  if (myId === null) {
+    statusEl.textContent = `Spectator — ${state.players.length}/2 players`;
+    infoEl.textContent = 'You are watching the game.';
+    endBtn.classList.add('hidden');
+    restartBtn.classList.add('hidden');
+    return;
+  }
+
   const me = state.players.find((p) => p.id === myId);
 
   if (state.phase === 'select') {
     const waiting = state.players.filter((p) => !p.country_id).length;
     statusEl.textContent = `Choose your country — ${state.players.length}/2 players`;
-    infoEl.textContent =
-      me && !me.country_id
-        ? 'Click any neutral country to play as it (for example Russia).'
-        : 'Waiting for opponent to choose a country...';
+    if (!me) {
+      infoEl.textContent = 'Waiting for an available slot...';
+    } else if (!me.country_id) {
+      infoEl.textContent = 'Click any neutral country to play as it (for example Russia).';
+    } else {
+      infoEl.textContent = 'Waiting for opponent to choose a country...';
+    }
     endBtn.classList.add('hidden');
     restartBtn.classList.add('hidden');
     return;
