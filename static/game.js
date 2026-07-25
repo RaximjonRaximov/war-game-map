@@ -1,85 +1,64 @@
-const RAW_COUNTRIES = [
-  { id: 'ca', name: 'Canada', lat: 56.0, lon: -106.0, neighbors: ['us', 'ru'] },
-  { id: 'us', name: 'United States', lat: 37.0, lon: -95.0, neighbors: ['ca', 'mx', 'br', 'gb', 'jp'] },
-  { id: 'mx', name: 'Mexico', lat: 23.0, lon: -102.0, neighbors: ['us', 'br'] },
-  { id: 'br', name: 'Brazil', lat: -14.0, lon: -51.0, neighbors: ['us', 'mx', 'ar', 'za'] },
-  { id: 'ar', name: 'Argentina', lat: -38.0, lon: -63.0, neighbors: ['br'] },
-  { id: 'gb', name: 'United Kingdom', lat: 54.0, lon: -2.0, neighbors: ['us', 'fr', 'de', 'ru'] },
-  { id: 'fr', name: 'France', lat: 46.0, lon: 2.0, neighbors: ['gb', 'de', 'eg'] },
-  { id: 'de', name: 'Germany', lat: 51.0, lon: 10.0, neighbors: ['gb', 'fr', 'ua', 'tr'] },
-  { id: 'ua', name: 'Ukraine', lat: 49.0, lon: 31.0, neighbors: ['de', 'ru', 'tr', 'ir'] },
-  { id: 'tr', name: 'Turkey', lat: 39.0, lon: 35.0, neighbors: ['ua', 'de', 'ir', 'eg', 'sa'] },
-  { id: 'ir', name: 'Iran', lat: 32.0, lon: 53.0, neighbors: ['ua', 'tr', 'sa', 'pk', 'in'] },
-  { id: 'sa', name: 'Saudi Arabia', lat: 24.0, lon: 45.0, neighbors: ['tr', 'ir', 'eg', 'pk', 'za'] },
-  { id: 'pk', name: 'Pakistan', lat: 30.0, lon: 69.0, neighbors: ['ir', 'sa', 'in', 'cn'] },
-  { id: 'in', name: 'India', lat: 20.0, lon: 78.0, neighbors: ['ir', 'pk', 'cn', 'id', 'za'] },
-  { id: 'cn', name: 'China', lat: 35.0, lon: 104.0, neighbors: ['ru', 'pk', 'in', 'jp', 'id', 'au'] },
-  { id: 'jp', name: 'Japan', lat: 36.0, lon: 138.0, neighbors: ['us', 'cn', 'id'] },
-  { id: 'id', name: 'Indonesia', lat: -2.0, lon: 118.0, neighbors: ['cn', 'in', 'jp', 'au'] },
-  { id: 'au', name: 'Australia', lat: -25.0, lon: 133.0, neighbors: ['cn', 'id', 'za'] },
-  { id: 'eg', name: 'Egypt', lat: 26.0, lon: 30.0, neighbors: ['tr', 'sa', 'za', 'fr'] },
-  { id: 'za', name: 'South Africa', lat: -29.0, lon: 24.0, neighbors: ['eg', 'sa', 'br', 'au', 'in'] },
-  { id: 'ru', name: 'Russia', lat: 61.0, lon: 105.0, neighbors: ['ca', 'us', 'gb', 'de', 'ua', 'ir', 'cn', 'jp'] },
-];
+const WORLD_W = 1280;
+const WORLD_H = 697;
 
-const countryById = new Map(RAW_COUNTRIES.map((c) => [c.id, c]));
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const roomInput = document.getElementById('room-code');
+const joinBtn = document.getElementById('join-room');
+const hudEl = document.getElementById('hud');
+const healthBar = document.getElementById('health-bar');
+const statsEl = document.getElementById('stats');
+const leaderboardEl = document.getElementById('leaderboard');
 
-let statusEl, infoEl, logEl, endBtn, soloBtn, restartBtn, roomInput, joinRoomBtn;
-let ws;
+const bg = new Image();
+bg.src = 'world_map.png';
+
+const keys = {};
+let mouse = { x: 0, y: 0 };
+let shooting = false;
+let currentRoom = 'default';
+let ws = null;
 let state = null;
-let serverById = new Map();
 let myId = null;
 let myColor = null;
-let selectedId = null;
-let lastPhase = null;
-let currentRoom = 'default';
+let connected = false;
+let lastInput = { dx: 0, dy: 0, angle: 0, shoot: false };
 
-let map;
-let markers = {};
-let labels = {};
-let connectionLines = [];
-let geoJsonLayer = null;
-let countryLayers = {};
-
-const NAME_TO_ID = (() => {
-  const overrides = { 'United States': 'United States of America' };
-  const map = {};
-  for (const c of RAW_COUNTRIES) {
-    map[overrides[c.name] || c.name] = c.id;
-  }
-  return map;
-})();
-
-function featureId(feature) {
-  return NAME_TO_ID[feature.properties.name];
-}
-
-function teamColor(team) {
-  if (team === 'blue') return '#1976d2';
-  if (team === 'red') return '#d32f2f';
-  if (team === 'green') return '#388e3c';
-  if (team === 'purple') return '#7b1fa2';
-  if (team === 'orange') return '#f57c00';
+function colorHex(color) {
+  if (color === 'blue') return '#1976d2';
+  if (color === 'red') return '#d32f2f';
+  if (color === 'green') return '#388e3c';
+  if (color === 'purple') return '#7b1fa2';
+  if (color === 'orange') return '#f57c00';
   return '#616161';
 }
 
-function colorName(team) {
-  if (team === 'blue') return 'ko\'k';
-  if (team === 'red') return 'qizil';
-  if (team === 'green') return 'yashil';
-  if (team === 'purple') return 'siyohrang';
-  if (team === 'orange') return 'to\'q sariq';
-  return 'kulrang';
+function getScale() {
+  const scaleX = canvas.width / WORLD_W;
+  const scaleY = canvas.height / WORLD_H;
+  return Math.min(scaleX, scaleY);
 }
 
-function getCountry(id) {
-  const local = countryById.get(id);
-  const server = serverById.get(id);
-  if (!local) return null;
+function getOffset() {
+  const s = getScale();
   return {
-    ...local,
-    team: server ? server.team : 'neutral',
-    armies: server ? server.armies : 0,
+    x: (canvas.width - WORLD_W * s) / 2,
+    y: (canvas.height - WORLD_H * s) / 2,
+  };
+}
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function worldPos(clientX, clientY) {
+  const s = getScale();
+  const off = getOffset();
+  return {
+    x: (clientX - off.x) / s,
+    y: (clientY - off.y) / s,
   };
 }
 
@@ -89,194 +68,17 @@ function send(msg) {
   }
 }
 
-function addLog(text) {
-  if (!logEl) return;
-  const entry = document.createElement('div');
-  entry.className = 'log-entry';
-  entry.textContent = text;
-  logEl.prepend(entry);
-  while (logEl.children.length > 30) {
-    logEl.removeChild(logEl.lastChild);
-  }
-}
-
-function init() {
-  statusEl = document.getElementById('status');
-  infoEl = document.getElementById('info');
-  logEl = document.getElementById('log');
-  endBtn = document.getElementById('end-turn');
-  soloBtn = document.getElementById('solo');
-  restartBtn = document.getElementById('restart');
-  roomInput = document.getElementById('room-code');
-  joinRoomBtn = document.getElementById('join-room');
-
+function connect() {
   const params = new URLSearchParams(location.search);
   currentRoom = params.get('room') || 'default';
   roomInput.value = currentRoom;
 
-  endBtn.addEventListener('click', () => send({ type: 'end_turn' }));
-  soloBtn.addEventListener('click', () => send({ type: 'start_solo' }));
-  restartBtn.addEventListener('click', () => send({ type: 'restart' }));
-  joinRoomBtn.addEventListener('click', () => {
-    const room = roomInput.value.trim() || 'default';
-    location.search = `?room=${encodeURIComponent(room)}`;
-  });
-  window.addEventListener('beforeunload', () => { if (ws) ws.close(); });
-  window.addEventListener('pagehide', () => { if (ws) ws.close(); });
-
-  initMap();
-  connect();
-}
-
-function initMap() {
-  map = L.map('map', { minZoom: 2, maxZoom: 8, worldCopyJump: true }).setView([20, 0], 2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    noWrap: false,
-  }).addTo(map);
-
-  for (const c of RAW_COUNTRIES) {
-    const marker = L.circleMarker([c.lat, c.lon], {
-      radius: 10,
-      fillColor: '#616161',
-      color: '#fff',
-      weight: 1,
-      opacity: 0.8,
-      fillOpacity: 0.9,
-    }).addTo(map);
-
-    marker.bindTooltip('', { permanent: true, direction: 'top', className: 'country-label', offset: [0, -8] });
-    marker.on('click', () => handleCountryClick(c.id));
-
-    markers[c.id] = marker;
-  }
-
-  loadCountryShapes();
-}
-
-function loadCountryShapes() {
-  fetch('countries-110m.json')
-    .then((res) => res.json())
-    .then((topoData) => initGeoJson(topoData))
-    .catch((err) => console.error('Country shapes failed to load', err));
-}
-
-function initGeoJson(topoData) {
-  const geojson = topojson.feature(topoData, topoData.objects.countries);
-  geoJsonLayer = L.geoJSON(geojson, {
-    style: featureStyle,
-    onEachFeature: (feature, layer) => {
-      const id = featureId(feature);
-      if (!id) return;
-      countryLayers[id] = layer;
-      layer.on('click', () => handleCountryClick(id));
-    },
-  }).addTo(map).bringToBack();
-  updateMap();
-}
-
-function featureStyle(feature) {
-  const id = featureId(feature);
-  const country = id ? getCountry(id) : null;
-  return {
-    fillColor: country ? teamColor(country.team) : '#1a1a1a',
-    fillOpacity: 0.55,
-    color: '#444',
-    weight: 0.8,
-    opacity: 0.4,
-  };
-}
-
-function updateMap() {
-  for (const c of RAW_COUNTRIES) {
-    const country = getCountry(c.id);
-    const marker = markers[c.id];
-    if (!marker || !country) continue;
-
-    const isMine = country.team === myColor;
-    const isSelected = selectedId === c.id;
-    const color = teamColor(country.team);
-    const radius = Math.max(8, Math.min(20, 8 + country.armies / 2));
-
-    marker.setStyle({
-      fillColor: color,
-      color: isSelected ? '#fff' : '#222',
-      weight: isSelected ? 3 : 1,
-      radius,
-    });
-    marker.setTooltipContent(`${country.name}<br>Qo'shin: ${country.armies}`);
-  }
-  if (geoJsonLayer) {
-    geoJsonLayer.setStyle(featureStyle);
-  }
-  drawConnections();
-}
-
-function drawConnections() {
-  for (const line of connectionLines) map.removeLayer(line);
-  connectionLines = [];
-
-  if (!state || state.phase !== 'play' || !selectedId) return;
-  const selected = getCountry(selectedId);
-  if (!selected || selected.team !== myColor) return;
-
-  for (const nid of selected.neighbors) {
-    const neighbor = getCountry(nid);
-    if (!neighbor) continue;
-    const isEnemy = neighbor.team !== myColor;
-    const line = L.polyline([[selected.lat, selected.lon], [neighbor.lat, neighbor.lon]], {
-      color: isEnemy ? '#ffeb3b' : '#555',
-      weight: isEnemy ? 2 : 1,
-      dashArray: isEnemy ? '5, 8' : null,
-      opacity: isEnemy ? 0.9 : 0.4,
-    }).addTo(map);
-    connectionLines.push(line);
-  }
-}
-
-function handleCountryClick(id) {
-  if (!state || myId === null) return;
-  const me = state.players.find((p) => p.id === myId);
-  if (!me) return;
-
-  const country = getCountry(id);
-  if (!country) return;
-
-  if (state.phase === 'select') {
-    if (!me.country_id && country.team === 'neutral') {
-      send({ type: 'select', country: id });
-    }
-    return;
-  }
-
-  if (state.phase !== 'play' || state.turn !== myId) return;
-
-  if (!selectedId) {
-    if (country.team === myColor && country.armies > 1) {
-      selectedId = id;
-    }
-  } else {
-    const selected = getCountry(selectedId);
-    if (id === selectedId) {
-      selectedId = null;
-    } else if (country.team === myColor) {
-      selectedId = id;
-    } else if (selected && selected.neighbors.includes(id)) {
-      send({ type: 'attack', from: selectedId, to: id });
-      selectedId = null;
-    }
-  }
-  updateUI();
-  updateMap();
-}
-
-function connect() {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${location.host}/ws?room=${encodeURIComponent(currentRoom)}`;
-  ws = new WebSocket(wsUrl);
+  ws = new WebSocket(`${protocol}//${location.host}/ws?room=${encodeURIComponent(currentRoom)}`);
 
   ws.onopen = () => {
-    statusEl.textContent = 'Serverga ulanmoqda...';
+    statusEl.textContent = 'Ulandi — xona: ' + currentRoom;
+    connected = true;
   };
 
   ws.onmessage = (event) => {
@@ -284,31 +86,19 @@ function connect() {
     if (msg.type === 'assigned') {
       myId = msg.player_id;
       myColor = msg.color;
+      hudEl.classList.remove('hidden');
     }
     if (msg.type === 'state') {
       state = msg.state;
-      serverById = new Map(state.countries.map((c) => [c.id, c]));
-      if (state.phase !== 'play') selectedId = null;
-      if (state.phase === 'select' && lastPhase && lastPhase !== 'select') {
-        logEl.innerHTML = '';
-      }
-      lastPhase = state.phase;
-      updateUI();
-      updateMap();
-    }
-    if (msg.type === 'spectator') {
-      infoEl.textContent = msg.message;
-    }
-    if (msg.type === 'event') {
-      addLog(msg.text);
     }
   };
 
   ws.onclose = () => {
     statusEl.textContent = 'Ulanish uzildi — qayta ulanmoqda...';
+    connected = false;
     myId = null;
     myColor = null;
-    selectedId = null;
+    hudEl.classList.add('hidden');
     setTimeout(connect, 2000);
   };
 
@@ -317,75 +107,159 @@ function connect() {
   };
 }
 
-function updateUI() {
-  if (!state) {
-    statusEl.textContent = 'Ulanmoqda...';
-    return;
+function updateInput() {
+  let dx = 0;
+  let dy = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+  if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+  if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+  const me = state ? state.players.find((p) => p.id === myId) : null;
+  let angle = lastInput.angle;
+  if (me) {
+    const pos = worldPos(mouse.x, mouse.y);
+    angle = Math.atan2(pos.y - me.y, pos.x - me.x);
   }
 
-  if (myId === null) {
-    statusEl.textContent = `Tomoshabin — ${state.players.length}/2 o'yinchilar`;
-    infoEl.textContent = 'Siz o\'yinni tomosha qilyapsiz.';
-    endBtn.classList.add('hidden');
-    soloBtn.classList.add('hidden');
-    restartBtn.classList.add('hidden');
-    return;
+  const input = { dx, dy, angle, shoot: shooting };
+  if (
+    input.dx !== lastInput.dx ||
+    input.dy !== lastInput.dy ||
+    Math.abs(input.angle - lastInput.angle) > 0.02 ||
+    input.shoot !== lastInput.shoot
+  ) {
+    send({ type: 'input', ...input });
+    lastInput = input;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const s = getScale();
+  const off = getOffset();
+
+  if (bg.complete && bg.naturalWidth) {
+    ctx.drawImage(bg, off.x, off.y, WORLD_W * s, WORLD_H * s);
+  } else {
+    ctx.fillStyle = '#0b1020';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
+  ctx.save();
+  ctx.translate(off.x, off.y);
+  ctx.scale(s, s);
+
+  if (state) {
+    for (const b of state.bullets) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffeb3b';
+      ctx.fill();
+    }
+
+    for (const p of state.players) {
+      const c = colorHex(p.color);
+      const blink = p.invuln > 0 && Math.floor(Date.now() / 100) % 2 === 0;
+      ctx.globalAlpha = blink ? 0.4 : 1;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = c;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + Math.cos(p.angle) * 18, p.y + Math.sin(p.angle) * 18);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = '#000';
+      ctx.fillRect(p.x - 16, p.y - 22, 32, 5);
+      ctx.fillStyle = p.health > 50 ? '#4caf50' : p.health > 25 ? '#ff9800' : '#f44336';
+      ctx.fillRect(p.x - 16, p.y - 22, (p.health / 100) * 32, 5);
+
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.name, p.x, p.y - 26);
+
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  ctx.restore();
+}
+
+function updateHUD() {
+  if (!state || myId === null) return;
   const me = state.players.find((p) => p.id === myId);
+  if (!me) return;
+  healthBar.style.width = `${me.health}%`;
+  statsEl.textContent = `${me.kills} ta o'ldirish / ${me.deaths} ta o'lim`;
 
-  if (state.phase === 'select') {
-    statusEl.textContent = `Mamlakat tanlang — ${state.players.length}/2 o'yinchilar`;
-    endBtn.classList.add('hidden');
-    restartBtn.classList.add('hidden');
-    soloBtn.classList.add('hidden');
-    if (!me) {
-      infoEl.textContent = 'Bo\'sh joy kutilmoqda...';
-    } else if (!me.country_id) {
-      infoEl.textContent = 'Xaritada neutral davlatga bosing, uning sifatida o\'ynang (masalan Rossiya). Neutral davlatlar kulrang.';
-    } else if (state.players.length === 1) {
-      infoEl.textContent = '"AI ga qarshi o\'ynash" ni bosing yoki ikkinchi o\'yinchini kuting.';
-      soloBtn.classList.remove('hidden');
-    } else {
-      infoEl.textContent = 'Raqib mamlakat tanlashini kutilmoqda...';
-    }
-    return;
+  const sorted = [...state.players].sort((a, b) => b.kills - a.kills);
+  let html = '<h3>Tablo</h3>';
+  for (const p of sorted) {
+    const mark = p.id === myId ? '▸ ' : '';
+    html += `<div class="row"><span>${mark}${p.name}</span><span>${p.kills}</span></div>`;
   }
+  leaderboardEl.innerHTML = html;
+}
 
-  if (state.phase === 'play') {
-    const turnPlayer = state.players.find((p) => p.id === state.turn);
-    if (turnPlayer && turnPlayer.id === myId) {
-      statusEl.textContent = 'Sizning navbatingiz';
-      const attacker = selectedId ? getCountry(selectedId) : null;
-      if (attacker && attacker.team === myColor) {
-        infoEl.textContent = `${attacker.name} dan hujum qilinyapti. Ulangan dushman davlatga bosing yoki "Navbatni yakunlash" ni bosing.`;
-      } else {
-        infoEl.textContent = `O'z mamlakatingizdan (rang ${colorName(myColor)}) 1 dan ko'p qo'shini bo'lganini tanlang, so'ngra ulangan dushmanga bosing.`;
-      }
-      endBtn.classList.remove('hidden');
-    } else {
-      statusEl.textContent = `${turnPlayer ? turnPlayer.name : 'Raqib'} navbati`;
-      infoEl.textContent = 'Raqib kutilmoqda...';
-      endBtn.classList.add('hidden');
-    }
-    soloBtn.classList.add('hidden');
-    restartBtn.classList.add('hidden');
-    return;
-  }
+function loop() {
+  updateInput();
+  draw();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
 
-  if (state.phase === 'over') {
-    const winnerName = state.players.find((p) => p.color === state.winner)?.name || state.winner;
-    if (myColor === state.winner) {
-      statusEl.textContent = 'Siz yutdingiz!';
-      infoEl.textContent = 'Dunyoni zabt etdingiz! Qayta o\'ynash uchun Qayta boshlash ni bosing.';
-    } else {
-      statusEl.textContent = `${winnerName} yutdi`;
-      infoEl.textContent = 'O\'yin tugadi. Qayta o\'ynash uchun Qayta boshlash ni bosing.';
+function init() {
+  resize();
+  window.addEventListener('resize', resize);
+
+  window.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+    if (e.code === 'Space') {
+      shooting = true;
     }
-    endBtn.classList.add('hidden');
-    soloBtn.classList.add('hidden');
-    restartBtn.classList.remove('hidden');
-  }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+    if (e.code === 'Space') {
+      shooting = false;
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  window.addEventListener('mousedown', () => {
+    shooting = true;
+  });
+
+  window.addEventListener('mouseup', () => {
+    shooting = false;
+  });
+
+  joinBtn.addEventListener('click', () => {
+    const room = roomInput.value.trim() || 'default';
+    location.search = `?room=${encodeURIComponent(room)}`;
+  });
+
+  bg.onload = () => {
+    draw();
+  };
+
+  connect();
+  requestAnimationFrame(loop);
 }
 
 init();

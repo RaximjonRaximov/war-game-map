@@ -3,37 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dunyo Urushi Xaritasi</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=9" />
+  <title>Dunyo Urushi — Piyoda askar</title>
+  <link rel="stylesheet" href="style.css?v=1" />
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>Dunyo Urushi Xaritasi</h1>
+  <div id="ui">
+    <div id="top-bar">
+      <h1>Dunyo Urushi</h1>
+      <div id="lobby">
+        <label for="room-code">Xona:</label>
+        <input id="room-code" type="text" value="default" />
+        <button id="join-room">Qo'shil</button>
+      </div>
       <div id="status">Ulanmoqda...</div>
-      <button id="end-turn" class="hidden">Navbatni yakunlash</button>
-      <button id="solo" class="hidden">AI ga qarshi o'ynash</button>
-      <button id="restart" class="hidden">Qayta boshlash</button>
-    </header>
-    <div id="lobby">
-      <label for="room-code">Xona kodi:</label>
-      <input id="room-code" type="text" value="default" />
-      <button id="join-room">Qo'shil / Yaratish</button>
-      <span class="hint">Do'stingiz bilan o'ynash uchun ikkalangiz bir xil xona kodini kiriting (yoki to'liq URLni ulashing).</span>
     </div>
-    <div id="info">Xona kodini kiriting va Qo'shil ni bosing. Neutral davlatlar kulrang — boshlash uchun biriga bosing.</div>
-    <div id="map"></div>
-    <div id="legend">
-      <span><span class="dot" style="background:#1976d2"></span>Siz / ittifoqchilar</span>
-      <span><span class="dot" style="background:#d32f2f"></span>Dushman</span>
-      <span><span class="dot" style="background:#616161"></span>Neutral</span>
-      <span><strong>Navbat:</strong> o'z mamlakatingizni tanlang, so'ngra ulangan dushmanga bosing.</span>
+    <div id="instructions">WASD / strelkalar — harakatlanish. Sichqoncha — yo'nalish. SPACE yoki CLICK — o'q otish.</div>
+    <div id="hud" class="hidden">
+      <div id="health-wrap"><div id="health-bar"></div></div>
+      <div id="stats">0 ta o'ldirish / 0 ta o'lim</div>
     </div>
-    <div id="log"></div>
+    <div id="leaderboard"></div>
   </div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="game.js?v=9"></script>
+  <canvas id="game"></canvas>
+  <script src="game.js?v=1"></script>
 </body>
 </html>
