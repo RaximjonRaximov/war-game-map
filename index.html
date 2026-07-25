@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>War Game Map</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>War Game Map</h1>
+      <div id="status">Blue turn — select a unit</div>
+      <button id="end-turn">End Turn</button>
+      <button id="restart" class="hidden">Restart</button>
+    </header>
+    <canvas id="map" width="800" height="600"></canvas>
+    <div id="info">Select a blue unit, then click a highlighted tile to move or an enemy to attack.</div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
