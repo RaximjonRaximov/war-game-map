@@ -38,6 +38,21 @@ let map;
 let markers = {};
 let labels = {};
 let connectionLines = [];
+let geoJsonLayer = null;
+let countryLayers = {};
+
+const NAME_TO_ID = (() => {
+  const overrides = { 'United States': 'United States of America' };
+  const map = {};
+  for (const c of RAW_COUNTRIES) {
+    map[overrides[c.name] || c.name] = c.id;
+  }
+  return map;
+})();
+
+function featureId(feature) {
+  return NAME_TO_ID[feature.properties.name];
+}
 
 function teamColor(team) {
   if (team === 'blue') return '#1976d2';
@@ -135,6 +150,41 @@ function initMap() {
 
     markers[c.id] = marker;
   }
+
+  loadCountryShapes();
+}
+
+function loadCountryShapes() {
+  fetch('countries-110m.json')
+    .then((res) => res.json())
+    .then((topoData) => initGeoJson(topoData))
+    .catch((err) => console.error('Country shapes failed to load', err));
+}
+
+function initGeoJson(topoData) {
+  const geojson = topojson.feature(topoData, topoData.objects.countries);
+  geoJsonLayer = L.geoJSON(geojson, {
+    style: featureStyle,
+    onEachFeature: (feature, layer) => {
+      const id = featureId(feature);
+      if (!id) return;
+      countryLayers[id] = layer;
+      layer.on('click', () => handleCountryClick(id));
+    },
+  }).addTo(map).bringToBack();
+  updateMap();
+}
+
+function featureStyle(feature) {
+  const id = featureId(feature);
+  const country = id ? getCountry(id) : null;
+  return {
+    fillColor: country ? teamColor(country.team) : '#1a1a1a',
+    fillOpacity: 0.55,
+    color: '#444',
+    weight: 0.8,
+    opacity: 0.4,
+  };
 }
 
 function updateMap() {
@@ -155,6 +205,9 @@ function updateMap() {
       radius,
     });
     marker.setTooltipContent(`${country.name}<br>Qo'shin: ${country.armies}`);
+  }
+  if (geoJsonLayer) {
+    geoJsonLayer.setStyle(featureStyle);
   }
   drawConnections();
 }
