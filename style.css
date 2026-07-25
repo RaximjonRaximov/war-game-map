@@ -6,7 +6,7 @@ body {
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
-  background: #1a1a1a;
+  background: #0a0a0a;
   color: #eee;
   display: flex;
   justify-content: center;
@@ -16,7 +16,7 @@ body {
 
 #app {
   width: 100%;
-  max-width: 900px;
+  max-width: 1200px;
   padding: 16px;
 }
 
@@ -62,8 +62,8 @@ button.hidden {
 #map {
   width: 100%;
   height: auto;
-  background: #0d3b0d;
-  border: 2px solid #444;
+  background: #020617;
+  border: 2px solid #333;
   border-radius: 6px;
   cursor: pointer;
   touch-action: none;

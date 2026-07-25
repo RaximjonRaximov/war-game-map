@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>War Game Map</title>
+  <title>War Game Map — World Domination</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>War Game Map</h1>
-      <div id="status">Blue turn — select a unit</div>
-      <button id="end-turn">End Turn</button>
+      <h1>World War Map</h1>
+      <div id="status">Choose your country</div>
+      <button id="end-turn" class="hidden">End Turn</button>
       <button id="restart" class="hidden">Restart</button>
     </header>
-    <canvas id="map" width="800" height="600"></canvas>
-    <div id="info">Select a blue unit, then click a highlighted tile to move or an enemy to attack.</div>
+    <canvas id="map" width="1600" height="896"></canvas>
+    <div id="info">Click any country to play as it (for example Russia).</div>
   </div>
   <script src="game.js"></script>
 </body>
