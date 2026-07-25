@@ -48,6 +48,15 @@ function teamColor(team) {
   return '#616161';
 }
 
+function colorName(team) {
+  if (team === 'blue') return 'ko\'k';
+  if (team === 'red') return 'qizil';
+  if (team === 'green') return 'yashil';
+  if (team === 'purple') return 'siyohrang';
+  if (team === 'orange') return 'to\'q sariq';
+  return 'kulrang';
+}
+
 function getCountry(id) {
   const local = countryById.get(id);
   const server = serverById.get(id);
@@ -145,7 +154,7 @@ function updateMap() {
       weight: isSelected ? 3 : 1,
       radius,
     });
-    marker.setTooltipContent(`${country.name}<br>Armies: ${country.armies}`);
+    marker.setTooltipContent(`${country.name}<br>Qo'shin: ${country.armies}`);
   }
   drawConnections();
 }
@@ -298,7 +307,7 @@ function updateUI() {
       if (attacker && attacker.team === myColor) {
         infoEl.textContent = `${attacker.name} dan hujum qilinyapti. Ulangan dushman davlatga bosing yoki "Navbatni yakunlash" ni bosing.`;
       } else {
-        infoEl.textContent = `O'z mamlakatingizdan (rang ${myColor}) 1 dan ko'p qo'shini bo'lganini tanlang, so'ngra ulangan dushmanga bosing.`;
+        infoEl.textContent = `O'z mamlakatingizdan (rang ${colorName(myColor)}) 1 dan ko'p qo'shini bo'lganini tanlang, so'ngra ulangan dushmanga bosing.`;
       }
       endBtn.classList.remove('hidden');
     } else {
