@@ -1,38 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uz">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>War Game Map — World Domination</title>
+  <title>Dunyo Urushi Xaritasi</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>World War Map</h1>
-      <div id="status">Connecting...</div>
-      <button id="end-turn" class="hidden">End Turn</button>
-      <button id="solo" class="hidden">Play vs AI</button>
-      <button id="restart" class="hidden">Restart</button>
+      <h1>Dunyo Urushi Xaritasi</h1>
+      <div id="status">Ulanmoqda...</div>
+      <button id="end-turn" class="hidden">Navbatni yakunlash</button>
+      <button id="solo" class="hidden">AI ga qarshi o'ynash</button>
+      <button id="restart" class="hidden">Qayta boshlash</button>
     </header>
     <div id="lobby">
-      <label for="room-code">Room code:</label>
+      <label for="room-code">Xona kodi:</label>
       <input id="room-code" type="text" value="default" />
-      <button id="join-room">Join / Create</button>
-      <span class="hint">To play with a friend, both enter the same room code (or share the full URL).</span>
+      <button id="join-room">Qo'shil / Yaratish</button>
+      <span class="hint">Do'stingiz bilan o'ynash uchun ikkalangiz bir xil xona kodini kiriting (yoki to'liq URLni ulashing).</span>
     </div>
-    <div id="info">Enter a room code and click Join. Neutral countries are gray — click one to start.</div>
+    <div id="info">Xona kodini kiriting va Qo'shil ni bosing. Neutral davlatlar kulrang — boshlash uchun biriga bosing.</div>
     <div id="map"></div>
     <div id="legend">
-      <span><span class="dot" style="background:#1976d2"></span>You / allies</span>
-      <span><span class="dot" style="background:#d32f2f"></span>Enemy</span>
+      <span><span class="dot" style="background:#1976d2"></span>Siz / ittifoqchilar</span>
+      <span><span class="dot" style="background:#d32f2f"></span>Dushman</span>
       <span><span class="dot" style="background:#616161"></span>Neutral</span>
-      <span><strong>Turn:</strong> select your country, then click a connected enemy to attack.</span>
+      <span><strong>Navbat:</strong> o'z mamlakatingizni tanlang, so'ngra ulangan dushmanga bosing.</span>
     </div>
     <div id="log"></div>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="game.js?v=6"></script>
+  <script src="game.js?v=7"></script>
 </body>
 </html>

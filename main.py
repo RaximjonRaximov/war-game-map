@@ -64,12 +64,12 @@ class Game:
             self.id_counter += 1
             if self.phase != "select" or len(self._human_players()) >= MAX_HUMANS:
                 self.spectators.append(ws)
-                return {"type": "spectator", "message": "Game is full or already in progress; you are spectating."}
+                return {"type": "spectator", "message": "O'yin to'la yoki allaqachon boshlangan; siz tomoshabinsiz."}
             color = self._next_color()
             slot = COLORS.index(color)
             player = {
                 "id": self.id_counter,
-                "name": f"Player {slot + 1}",
+                "name": f"O'yinchi {slot + 1}",
                 "color": color,
                 "country_id": None,
                 "ws": ws,
@@ -173,7 +173,7 @@ class Game:
         country["team"] = player["color"]
         country["armies"] = 12
         player["country_id"] = country["id"]
-        await self.send_event(f"{player['name']} chose {country['name']}")
+        await self.send_event(f"{player['name']} {country['name']} ni tanladi")
         if len(self.players) >= 2 and all(p["country_id"] for p in self.players):
             await self._start_game()
 
@@ -186,7 +186,7 @@ class Game:
         self.id_counter += 1
         ai = {
             "id": self.id_counter,
-            "name": "AI",
+            "name": "Sun'iy intellekt",
             "color": self._next_color(),
             "country_id": None,
             "ws": None,
@@ -204,7 +204,7 @@ class Game:
             if c["team"] == "neutral":
                 c["armies"] = random.randint(2, 4)
         self.turn_index = 0
-        await self.send_event("Game started! Conquer all countries to win.")
+        await self.send_event("O'yin boshlandi! G'alaba uchun barcha davlatlarni egallang.")
         await self._start_turn(0)
 
     async def _start_turn(self, idx):
@@ -217,7 +217,7 @@ class Game:
             reinforce = max(3, len(owned) // 2)
             for _ in range(reinforce):
                 random.choice(owned)["armies"] += 1
-        await self.send_event(f"{player['name']}'s turn — received {max(3, len(owned) // 2)} reinforcements")
+        await self.send_event(f"{player['name']} navbati — {max(3, len(owned) // 2)} ta qo'shin qo'shildi")
         if player.get("is_ai"):
             asyncio.create_task(self._ai_loop())
 
@@ -244,9 +244,9 @@ class Game:
         before = to_c["team"]
         self._battle(from_c, to_c)
         if to_c["team"] != before:
-            await self.send_event(f"{player['name']} captured {to_c['name']} from {from_c['name']}")
+            await self.send_event(f"{player['name']} {from_c['name']} dan {to_c['name']} ni egalladi")
         else:
-            await self.send_event(f"{player['name']} attacked {to_c['name']} from {from_c['name']} — {to_c['name']} holds with {to_c['armies']} armies")
+            await self.send_event(f"{player['name']} {from_c['name']} dan {to_c['name']} ga hujum qildi — {to_c['name']} {to_c['armies']} qo'shin bilan himoya qildi")
         self._check_win()
 
     def _battle(self, attacker, defender):
@@ -269,7 +269,7 @@ class Game:
             self.phase = "over"
             self.winner = next(iter(teams))
             winner_name = next((p["name"] for p in self.players if p["color"] == self.winner), self.winner)
-            asyncio.create_task(self.send_event(f"{winner_name} conquered the world!"))
+            asyncio.create_task(self.send_event(f"{winner_name} dunyoni zabt etdi!"))
 
     async def _handle_end_turn(self, ws: WebSocket):
         if self.phase != "play" or not self.players:

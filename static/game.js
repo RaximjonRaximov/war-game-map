@@ -214,7 +214,7 @@ function connect() {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    statusEl.textContent = 'Connected — waiting for server';
+    statusEl.textContent = 'Serverga ulanmoqda...';
   };
 
   ws.onmessage = (event) => {
@@ -243,7 +243,7 @@ function connect() {
   };
 
   ws.onclose = () => {
-    statusEl.textContent = 'Disconnected — reconnecting...';
+    statusEl.textContent = 'Ulanish uzildi — qayta ulanmoqda...';
     myId = null;
     myColor = null;
     selectedId = null;
@@ -251,19 +251,19 @@ function connect() {
   };
 
   ws.onerror = () => {
-    statusEl.textContent = 'Connection error';
+    statusEl.textContent = 'Ulanish xatosi';
   };
 }
 
 function updateUI() {
   if (!state) {
-    statusEl.textContent = 'Connecting...';
+    statusEl.textContent = 'Ulanmoqda...';
     return;
   }
 
   if (myId === null) {
-    statusEl.textContent = `Spectator — ${state.players.length}/2 players`;
-    infoEl.textContent = 'You are watching the game.';
+    statusEl.textContent = `Tomoshabin — ${state.players.length}/2 o'yinchilar`;
+    infoEl.textContent = 'Siz o\'yinni tomosha qilyapsiz.';
     endBtn.classList.add('hidden');
     soloBtn.classList.add('hidden');
     restartBtn.classList.add('hidden');
@@ -273,19 +273,19 @@ function updateUI() {
   const me = state.players.find((p) => p.id === myId);
 
   if (state.phase === 'select') {
-    statusEl.textContent = `Choose your country — ${state.players.length}/2 players`;
+    statusEl.textContent = `Mamlakat tanlang — ${state.players.length}/2 o'yinchilar`;
     endBtn.classList.add('hidden');
     restartBtn.classList.add('hidden');
     soloBtn.classList.add('hidden');
     if (!me) {
-      infoEl.textContent = 'Waiting for an available slot...';
+      infoEl.textContent = 'Bo\'sh joy kutilmoqda...';
     } else if (!me.country_id) {
-      infoEl.textContent = 'Click a neutral country on the map to play as it (for example Russia). Neutral countries are gray.';
+      infoEl.textContent = 'Xaritada neutral davlatga bosing, uning sifatida o\'ynang (masalan Rossiya). Neutral davlatlar kulrang.';
     } else if (state.players.length === 1) {
-      infoEl.textContent = 'Click "Play vs AI" to start a solo game, or wait for a second player.';
+      infoEl.textContent = '"AI ga qarshi o\'ynash" ni bosing yoki ikkinchi o\'yinchini kuting.';
       soloBtn.classList.remove('hidden');
     } else {
-      infoEl.textContent = 'Waiting for opponent to choose a country...';
+      infoEl.textContent = 'Raqib mamlakat tanlashini kutilmoqda...';
     }
     return;
   }
@@ -293,17 +293,17 @@ function updateUI() {
   if (state.phase === 'play') {
     const turnPlayer = state.players.find((p) => p.id === state.turn);
     if (turnPlayer && turnPlayer.id === myId) {
-      statusEl.textContent = 'Your turn';
+      statusEl.textContent = 'Sizning navbatingiz';
       const attacker = selectedId ? getCountry(selectedId) : null;
       if (attacker && attacker.team === myColor) {
-        infoEl.textContent = `Attacking from ${attacker.name}. Click a connected enemy country to attack, or click "End Turn".`;
+        infoEl.textContent = `${attacker.name} dan hujum qilinyapti. Ulangan dushman davlatga bosing yoki "Navbatni yakunlash" ni bosing.`;
       } else {
-        infoEl.textContent = `Select one of your countries (colored ${myColor}) with more than 1 army, then click a connected enemy to attack.`;
+        infoEl.textContent = `O'z mamlakatingizdan (rang ${myColor}) 1 dan ko'p qo'shini bo'lganini tanlang, so'ngra ulangan dushmanga bosing.`;
       }
       endBtn.classList.remove('hidden');
     } else {
-      statusEl.textContent = `${turnPlayer ? turnPlayer.name : 'Opponent'}'s turn`;
-      infoEl.textContent = 'Waiting for opponent...';
+      statusEl.textContent = `${turnPlayer ? turnPlayer.name : 'Raqib'} navbati`;
+      infoEl.textContent = 'Raqib kutilmoqda...';
       endBtn.classList.add('hidden');
     }
     soloBtn.classList.add('hidden');
@@ -314,11 +314,11 @@ function updateUI() {
   if (state.phase === 'over') {
     const winnerName = state.players.find((p) => p.color === state.winner)?.name || state.winner;
     if (myColor === state.winner) {
-      statusEl.textContent = 'You won!';
-      infoEl.textContent = 'You conquered the world! Click Restart to play again.';
+      statusEl.textContent = 'Siz yutdingiz!';
+      infoEl.textContent = 'Dunyoni zabt etdingiz! Qayta o\'ynash uchun Qayta boshlash ni bosing.';
     } else {
-      statusEl.textContent = `${winnerName} won`;
-      infoEl.textContent = 'Game over. Click Restart to play again.';
+      statusEl.textContent = `${winnerName} yutdi`;
+      infoEl.textContent = 'O\'yin tugadi. Qayta o\'ynash uchun Qayta boshlash ni bosing.';
     }
     endBtn.classList.add('hidden');
     soloBtn.classList.add('hidden');
