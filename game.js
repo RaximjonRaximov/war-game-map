@@ -1,65 +1,57 @@
-const COLS = 20;
-const ROWS = 15;
-const TILE = 40;
-
-const TERRAIN = {
-  grass: { color: '#4caf50', move: 1 },
-  forest: { color: '#2e7d32', move: 2 },
-  mountain: { color: '#757575', move: Infinity },
-  water: { color: '#2196f3', move: Infinity },
-};
-
-const DIRS = [
-  { x: 0, y: -1 },
-  { x: 0, y: 1 },
-  { x: -1, y: 0 },
-  { x: 1, y: 0 },
+const RAW_COUNTRIES = [
+  { id: 'ca', name: 'Canada', x: 300, y: 160, neighbors: ['us', 'ru'] },
+  { id: 'us', name: 'United States', x: 380, y: 300, neighbors: ['ca', 'mx', 'br', 'gb', 'jp'] },
+  { id: 'mx', name: 'Mexico', x: 340, y: 420, neighbors: ['us', 'br'] },
+  { id: 'br', name: 'Brazil', x: 520, y: 640, neighbors: ['us', 'mx', 'ar', 'za'] },
+  { id: 'ar', name: 'Argentina', x: 500, y: 780, neighbors: ['br'] },
+  { id: 'gb', name: 'United Kingdom', x: 700, y: 250, neighbors: ['us', 'fr', 'de', 'ru'] },
+  { id: 'fr', name: 'France', x: 720, y: 320, neighbors: ['gb', 'de', 'eg'] },
+  { id: 'de', name: 'Germany', x: 780, y: 270, neighbors: ['gb', 'fr', 'ua', 'tr'] },
+  { id: 'ua', name: 'Ukraine', x: 870, y: 270, neighbors: ['de', 'ru', 'tr', 'ir'] },
+  { id: 'tr', name: 'Turkey', x: 900, y: 350, neighbors: ['ua', 'de', 'ir', 'eg', 'sa'] },
+  { id: 'ir', name: 'Iran', x: 970, y: 380, neighbors: ['ua', 'tr', 'sa', 'pk', 'in'] },
+  { id: 'sa', name: 'Saudi Arabia', x: 920, y: 450, neighbors: ['tr', 'ir', 'eg', 'pk', 'za'] },
+  { id: 'pk', name: 'Pakistan', x: 1030, y: 410, neighbors: ['ir', 'sa', 'in', 'cn'] },
+  { id: 'in', name: 'India', x: 1080, y: 480, neighbors: ['ir', 'pk', 'cn', 'id', 'za'] },
+  { id: 'cn', name: 'China', x: 1200, y: 390, neighbors: ['ru', 'pk', 'in', 'jp', 'id', 'au'] },
+  { id: 'jp', name: 'Japan', x: 1350, y: 330, neighbors: ['us', 'cn', 'id'] },
+  { id: 'id', name: 'Indonesia', x: 1220, y: 600, neighbors: ['cn', 'in', 'jp', 'au'] },
+  { id: 'au', name: 'Australia', x: 1320, y: 760, neighbors: ['cn', 'id', 'za'] },
+  { id: 'eg', name: 'Egypt', x: 840, y: 430, neighbors: ['tr', 'sa', 'za', 'fr'] },
+  { id: 'za', name: 'South Africa', x: 850, y: 740, neighbors: ['eg', 'sa', 'br', 'au', 'in'] },
+  { id: 'ru', name: 'Russia', x: 1110, y: 210, neighbors: ['ca', 'us', 'gb', 'de', 'ua', 'ir', 'cn', 'jp'] },
 ];
 
-class Base {
-  constructor(team, x, y) {
-    this.team = team;
-    this.x = x;
-    this.y = y;
-    this.hp = 20;
-    this.maxHp = 20;
-  }
-}
-
-class Unit {
-  constructor(team, x, y, type = 'infantry') {
-    this.team = team;
-    this.x = x;
-    this.y = y;
-    this.type = type;
-    this.maxHp = type === 'tank' ? 14 : 8;
-    this.hp = this.maxHp;
-    this.attack = type === 'tank' ? 5 : 3;
-    this.move = type === 'tank' ? 3 : 2;
-    this.moved = false;
-    this.attacked = false;
+class Country {
+  constructor(data) {
+    this.id = data.id;
+    this.name = data.name;
+    this.x = data.x;
+    this.y = data.y;
+    this.neighbors = data.neighbors || [];
+    this.team = 'neutral';
+    this.armies = 0;
   }
 }
 
 let canvas, ctx, statusEl, infoEl, endBtn, restartBtn;
-let map = [];
-let units = [];
-let bases = [];
+let bg = new Image();
+bg.src = 'assets/world-map.jpg';
+let countries = [];
+let phase = 'select';
 let turn = 'blue';
 let selected = null;
-let reachable = new Map();
 let gameOver = false;
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function inBounds(x, y) {
-  return x >= 0 && x < COLS && y >= 0 && y < ROWS;
-}
-
-function capitalize(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
 }
 
 function init() {
@@ -74,472 +66,317 @@ function init() {
   endBtn.addEventListener('click', endTurn);
   restartBtn.addEventListener('click', newGame);
 
+  initCountries();
+
+  if (bg.complete) {
+    startLoop();
+  } else {
+    bg.onload = startLoop;
+  }
+}
+
+function startLoop() {
   newGame();
   requestAnimationFrame(draw);
 }
 
-function generateMap() {
-  map = [];
-  for (let y = 0; y < ROWS; y++) {
-    map[y] = [];
-    for (let x = 0; x < COLS; x++) {
-      map[y][x] = { terrain: 'grass', unit: null, base: null };
-    }
-  }
-
-  for (let i = 0; i < 50; i++) addCluster('forest', 3);
-  for (let i = 0; i < 12; i++) addCluster('mountain', 2);
-  for (let i = 0; i < 8; i++) addCluster('water', 3);
-}
-
-function addCluster(type, size) {
-  const startX = randInt(0, COLS - 1);
-  const startY = randInt(0, ROWS - 1);
-  for (let i = 0; i < size; i++) {
-    const x = Math.min(Math.max(startX + randInt(-2, 2), 0), COLS - 1);
-    const y = Math.min(Math.max(startY + randInt(-2, 2), 0), ROWS - 1);
-    map[y][x].terrain = type;
-  }
-}
-
-function setTerrainZone(sx, sy, w, h, type) {
-  for (let y = sy; y < sy + h; y++) {
-    for (let x = sx; x < sx + w; x++) {
-      if (inBounds(x, y) && !map[y][x].base) {
-        map[y][x].terrain = type;
-      }
-    }
+function initCountries() {
+  countries = RAW_COUNTRIES.map((c) => new Country(c));
+  const byId = new Map(countries.map((c) => [c.id, c]));
+  for (const c of countries) {
+    c.neighbors = c.neighbors.map((id) => byId.get(id)).filter(Boolean);
   }
 }
 
 function newGame() {
-  generateMap();
-  units = [];
-  bases = [];
-  gameOver = false;
+  phase = 'select';
   turn = 'blue';
   selected = null;
-  reachable.clear();
+  gameOver = false;
+  for (const c of countries) {
+    c.team = 'neutral';
+    c.armies = 0;
+  }
+  endBtn.classList.add('hidden');
+  restartBtn.classList.add('hidden');
+  updateStatus('Choose your country');
+  infoEl.textContent = 'Click any country on the map to start as it (for example Russia).';
+}
 
-  endBtn.classList.remove('hidden');
+function startGame(playerCountry) {
+  playerCountry.team = 'blue';
+  playerCountry.armies = 12;
+
+  const others = countries.filter((c) => c !== playerCountry);
+  shuffle(others);
+  for (let i = 0; i < 3; i++) {
+    others[i].team = 'red';
+    others[i].armies = 8;
+  }
+
+  for (const c of countries) {
+    if (c.team === 'neutral') c.armies = randInt(2, 4);
+  }
+
+  phase = 'play';
+  startTurn('blue');
+  selected = playerCountry;
+  infoEl.textContent = `${playerCountry.name} selected. Click a connected red or gray country to attack.`;
+}
+
+function startTurn(team) {
+  if (phase !== 'play') return;
+  turn = team;
+  selected = null;
+
+  const owned = countries.filter((c) => c.team === team);
+  const reinforce = Math.max(3, Math.floor(owned.length / 2));
+  for (let i = 0; i < reinforce; i++) {
+    const c = owned[Math.floor(Math.random() * owned.length)];
+    if (c) c.armies++;
+  }
+
+  updateStatus(`${team === 'blue' ? 'Blue' : 'Red'} turn — reinforcements added`);
+  infoEl.textContent =
+    team === 'blue'
+      ? 'Select one of your countries, then click a connected enemy to attack.'
+      : 'Enemy is thinking...';
+  endBtn.classList.toggle('hidden', team !== 'blue' || gameOver);
   restartBtn.classList.add('hidden');
 
-  addBase('blue', 1, 1);
-  addBase('red', COLS - 2, ROWS - 2);
-
-  setTerrainZone(0, 0, 3, 3, 'grass');
-  setTerrainZone(COLS - 3, ROWS - 3, 3, 3, 'grass');
-
-  addUnit('blue', 1, 2, 'tank');
-  addUnit('blue', 2, 1, 'infantry');
-  addUnit('blue', 2, 2, 'infantry');
-
-  addUnit('red', COLS - 2, ROWS - 3, 'tank');
-  addUnit('red', COLS - 3, ROWS - 2, 'infantry');
-  addUnit('red', COLS - 3, ROWS - 3, 'infantry');
-
-  updateStatus();
-  infoEl.textContent = 'Select a blue unit to begin.';
-}
-
-function addBase(team, x, y) {
-  const b = new Base(team, x, y);
-  bases.push(b);
-  map[y][x].base = b;
-  map[y][x].terrain = 'grass';
-}
-
-function addUnit(team, x, y, type) {
-  const u = new Unit(team, x, y, type);
-  units.push(u);
-  map[y][x].unit = u;
-}
-
-function updateStatus(msg) {
-  if (msg) {
-    statusEl.textContent = msg;
-    return;
+  if (team === 'red') {
+    setTimeout(aiTurn, 800);
   }
-  statusEl.textContent = turn === 'blue' ? 'Blue turn — select a unit' : 'Red turn';
 }
 
-function getReachable(u) {
-  const reach = new Map();
-  if (u.moved) {
-    reach.set(`${u.x},${u.y}`, 0);
-    return reach;
-  }
-  const q = [{ x: u.x, y: u.y, cost: 0 }];
-  reach.set(`${u.x},${u.y}`, 0);
-  let head = 0;
+function endTurn() {
+  if (phase !== 'play' || turn !== 'blue' || gameOver) return;
+  selected = null;
+  startTurn('red');
+}
 
-  while (head < q.length) {
-    const { x, y, cost } = q[head++];
-    for (const d of DIRS) {
-      const nx = x + d.x;
-      const ny = y + d.y;
-      if (!inBounds(nx, ny)) continue;
-      const cell = map[ny][nx];
-      const moveCost = TERRAIN[cell.terrain].move;
-      if (moveCost === Infinity) continue;
-      if (cell.unit) continue;
-      const nc = cost + moveCost;
-      const key = `${nx},${ny}`;
-      if (nc <= u.move && (!reach.has(key) || nc < reach.get(key))) {
-        reach.set(key, nc);
-        q.push({ x: nx, y: ny, cost: nc });
+function aiTurn() {
+  if (gameOver) return;
+
+  for (let safety = 0; safety < 40; safety++) {
+    let acted = false;
+    for (const c of countries) {
+      if (c.team !== 'red' || c.armies <= 1) continue;
+      const targets = c.neighbors
+        .filter((n) => n.team !== 'red' && n.armies < c.armies)
+        .sort((a, b) => a.armies - b.armies);
+      if (targets.length) {
+        battle(c, targets[0]);
+        acted = true;
+        if (gameOver) return;
       }
     }
+    if (!acted) break;
   }
-  return reach;
+
+  if (!gameOver) startTurn('blue');
 }
 
-function getAttackable(u) {
-  if (u.attacked) return [];
-  const targets = [];
-  for (const d of DIRS) {
-    const nx = u.x + d.x;
-    const ny = u.y + d.y;
-    if (!inBounds(nx, ny)) continue;
-    const cell = map[ny][nx];
-    if (cell.unit && cell.unit.team !== u.team) targets.push(cell.unit);
-    if (cell.base && cell.base.team !== u.team) targets.push(cell.base);
-  }
-  return targets;
+function rollDice(n) {
+  const rolls = [];
+  for (let i = 0; i < n; i++) rolls.push(randInt(1, 6));
+  return rolls.sort((a, b) => b - a);
 }
 
-function isAdjacent(a, b) {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
-}
+function battle(attacker, defender) {
+  if (attacker.armies <= 1 || gameOver) return false;
 
-function selectUnit(u) {
-  if (u.attacked) {
-    infoEl.textContent = 'This unit has already acted this turn.';
-    return;
-  }
-  selected = u;
-  reachable = getReachable(u);
-  infoEl.textContent = `${capitalize(u.type)} selected — HP ${u.hp}/${u.maxHp}, ATK ${u.attack}, MOVE ${u.move}`;
-}
+  while (attacker.armies > 1 && defender.armies > 0) {
+    const aDice = Math.min(3, attacker.armies - 1);
+    const dDice = Math.min(2, defender.armies);
+    const aRolls = rollDice(aDice);
+    const dRolls = rollDice(dDice);
 
-function getTile(e) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = Math.floor(((e.clientX - rect.left) * scaleX) / TILE);
-  const y = Math.floor(((e.clientY - rect.top) * scaleY) / TILE);
-  return { x, y };
-}
-
-function handlePointer(e) {
-  e.preventDefault();
-  if (gameOver || turn !== 'blue') return;
-  const t = getTile(e);
-  if (!inBounds(t.x, t.y)) return;
-  const cell = map[t.y][t.x];
-
-  if (selected) {
-    const target = cell.unit || cell.base;
-    if (target && target.team !== 'blue' && !selected.attacked && isAdjacent(selected, target)) {
-      attackTarget(selected, target);
-      selected = null;
-      reachable.clear();
-      return;
-    }
-
-    if (!selected.moved && reachable.has(`${t.x},${t.y}`) && !cell.unit) {
-      moveUnit(selected, t.x, t.y);
-      const canAttack = getAttackable(selected).length > 0;
-      if (canAttack) {
-        reachable = getReachable(selected);
-        infoEl.textContent = 'Unit moved. Click an adjacent enemy to attack.';
+    for (let i = 0; i < Math.min(aRolls.length, dRolls.length); i++) {
+      if (aRolls[i] > dRolls[i]) {
+        defender.armies--;
       } else {
-        selected = null;
-        reachable.clear();
+        attacker.armies--;
       }
-      return;
-    }
-
-    if (cell.unit && cell.unit.team === 'blue' && cell.unit !== selected && !cell.unit.attacked) {
-      selectUnit(cell.unit);
-      return;
-    }
-
-    selected = null;
-    reachable.clear();
-    return;
-  }
-
-  if (cell.unit && cell.unit.team === 'blue' && !cell.unit.attacked) {
-    selectUnit(cell.unit);
-  }
-}
-
-function moveUnit(u, x, y) {
-  map[u.y][u.x].unit = null;
-  u.x = x;
-  u.y = y;
-  map[y][x].unit = u;
-  u.moved = true;
-  infoEl.textContent = 'Unit moved.';
-}
-
-function attackTarget(attacker, defender) {
-  defender.hp -= attacker.attack;
-  attacker.attacked = true;
-  infoEl.textContent = `${capitalize(attacker.type)} hit for ${attacker.attack} damage!`;
-
-  if (defender.hp <= 0) {
-    if (defender instanceof Base) {
-      gameOver = attacker.team === 'blue' ? 'BLUE WINS!' : 'RED WINS!';
-      updateStatus(gameOver);
-      infoEl.textContent = gameOver;
-      endBtn.classList.add('hidden');
-      restartBtn.classList.remove('hidden');
-    } else {
-      removeUnit(defender);
-      infoEl.textContent = 'Unit destroyed!';
     }
   }
-}
 
-function removeUnit(u) {
-  if (selected === u) {
-    selected = null;
-    reachable.clear();
+  if (defender.armies <= 0) {
+    defender.team = attacker.team;
+    defender.armies = attacker.armies - 1;
+    attacker.armies = 1;
+    infoEl.textContent = `${attacker.name} conquered ${defender.name}!`;
+  } else {
+    infoEl.textContent = `${defender.name} defended against ${attacker.name}.`;
   }
-  map[u.y][u.x].unit = null;
-  units = units.filter((unit) => unit !== u);
-  checkForces();
+
+  checkWin();
+  return defender.team === attacker.team;
 }
 
-function checkForces() {
-  const blueAlive = units.some((u) => u.team === 'blue');
-  const redAlive = units.some((u) => u.team === 'red');
-  if (!blueAlive || !redAlive) {
-    gameOver = blueAlive ? 'BLUE WINS!' : 'RED WINS!';
-    updateStatus(gameOver);
-    infoEl.textContent = gameOver;
+function checkWin() {
+  const teams = new Set(countries.map((c) => c.team).filter((t) => t !== 'neutral'));
+  if (teams.size === 1) {
+    const winner = [...teams][0];
+    gameOver = true;
+    phase = 'over';
+    updateStatus(`${winner.toUpperCase()} CONQUERS THE WORLD!`);
+    infoEl.textContent = winner === 'blue' ? 'You won! Click Restart to play again.' : 'Enemy won. Click Restart to try again.';
     endBtn.classList.add('hidden');
     restartBtn.classList.remove('hidden');
   }
 }
 
-function endTurn() {
-  if (gameOver) return;
-  selected = null;
-  reachable.clear();
-  turn = 'red';
-  updateStatus('Enemy turn...');
-  infoEl.textContent = 'Enemy is thinking...';
-  setTimeout(enemyTurn, 500);
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY,
+  };
 }
 
-function enemyTurn() {
-  const enemies = units.filter((u) => u.team === 'red');
-  let idx = 0;
-
-  function step() {
-    if (gameOver) return;
-    if (idx >= enemies.length) {
-      endRedTurn();
-      return;
-    }
-    const u = enemies[idx++];
-    if (!units.includes(u) || (u.moved && u.attacked)) {
-      step();
-      return;
-    }
-
-    const target = findNearestTarget(u);
-    if (!target) {
-      markDone(u);
-      step();
-      return;
-    }
-
-    if (isAdjacent(u, target)) {
-      attackTarget(u, target);
-      setTimeout(step, 500);
-      return;
-    }
-
-    const dest = findBestMove(u, target);
-    if (dest && (dest.x !== u.x || dest.y !== u.y)) {
-      moveUnit(u, dest.x, dest.y);
-      if (isAdjacent(u, target) && !u.attacked) {
-        attackTarget(u, target);
-      }
-    } else {
-      markDone(u);
-    }
-    setTimeout(step, 500);
+function getCountryAt(x, y) {
+  for (const c of countries) {
+    const dx = c.x - x;
+    const dy = c.y - y;
+    if (Math.sqrt(dx * dx + dy * dy) <= 24) return c;
   }
-
-  step();
-}
-
-function markDone(u) {
-  u.moved = true;
-  u.attacked = true;
-}
-
-function endRedTurn() {
-  for (const u of units) {
-    u.moved = false;
-    u.attacked = false;
-  }
-  turn = 'blue';
-  updateStatus();
-  infoEl.textContent = 'Your turn. Select a unit.';
-}
-
-function findNearestTarget(u) {
-  let best = null;
-  let bestDist = Infinity;
-  for (const b of bases) {
-    if (b.team !== u.team) {
-      const d = Math.abs(b.x - u.x) + Math.abs(b.y - u.y);
-      if (d < bestDist) {
-        bestDist = d;
-        best = b;
-      }
-    }
-  }
-  for (const other of units) {
-    if (other.team !== u.team) {
-      const d = Math.abs(other.x - u.x) + Math.abs(other.y - u.y);
-      if (d < bestDist) {
-        bestDist = d;
-        best = other;
-      }
-    }
-  }
-  return best;
-}
-
-function findBestMove(u, target) {
-  const reach = getReachable(u);
-  const currentDist = Math.abs(target.x - u.x) + Math.abs(target.y - u.y);
-  let best = null;
-  let bestDist = Infinity;
-
-  for (const [key] of reach) {
-    const [x, y] = key.split(',').map(Number);
-    const d = Math.abs(target.x - x) + Math.abs(target.y - y);
-    if (d < bestDist) {
-      bestDist = d;
-      best = { x, y };
-    }
-  }
-
-  if (best && bestDist < currentDist) return best;
   return null;
+}
+
+function handlePointer(e) {
+  e.preventDefault();
+  const { x, y } = getPos(e);
+
+  if (phase === 'over') return;
+
+  if (phase === 'select') {
+    const c = getCountryAt(x, y);
+    if (c) startGame(c);
+    return;
+  }
+
+  if (turn !== 'blue' || gameOver) return;
+
+  const c = getCountryAt(x, y);
+  if (!c) {
+    selected = null;
+    return;
+  }
+
+  if (selected) {
+    if (c === selected) {
+      selected = null;
+      return;
+    }
+
+    if (c.team === 'blue') {
+      selected = c;
+      return;
+    }
+
+    if (selected.neighbors.includes(c) && selected.armies > 1) {
+      battle(selected, c);
+      if (!selected || selected.armies <= 1) selected = null;
+      return;
+    }
+
+    selected = null;
+    return;
+  }
+
+  if (c.team === 'blue' && c.armies > 1) {
+    selected = c;
+  }
+}
+
+function teamColor(team) {
+  if (team === 'blue') return '#1976d2';
+  if (team === 'red') return '#d32f2f';
+  return '#616161';
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      const cell = map[y][x];
-      ctx.fillStyle = TERRAIN[cell.terrain].color;
-      ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
-      ctx.strokeStyle = '#2e7d32';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(x * TILE, y * TILE, TILE, TILE);
-      if (cell.base) drawBase(cell.base);
+  if (bg.complete && bg.naturalWidth) {
+    ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+  }
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 2;
+  for (const c of countries) {
+    for (const n of c.neighbors) {
+      if (c.id < n.id) {
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y);
+        ctx.lineTo(n.x, n.y);
+        ctx.stroke();
+      }
     }
   }
 
-  if (selected) {
-    for (const [key] of reachable) {
-      const [x, y] = key.split(',').map(Number);
-      ctx.fillStyle = 'rgba(255, 255, 0, 0.25)';
-      ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
-    }
-
-    const attackable = getAttackable(selected);
-    ctx.strokeStyle = '#ff1744';
-    ctx.lineWidth = 3;
-    for (const t of attackable) {
-      ctx.strokeRect(t.x * TILE, t.y * TILE, TILE, TILE);
-    }
-    ctx.lineWidth = 1;
-
-    ctx.strokeStyle = '#ffeb3b';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(selected.x * TILE, selected.y * TILE, TILE, TILE);
-    ctx.lineWidth = 1;
+  for (const c of countries) {
+    drawCountry(c);
   }
 
-  for (const u of units) {
-    drawUnit(u);
+  if (phase === 'select') {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 40px Arial';
+    ctx.fillText('Choose your country', canvas.width / 2, canvas.height / 2 - 30);
+    ctx.font = '20px Arial';
+    ctx.fillText('(for example, click Russia)', canvas.width / 2, canvas.height / 2 + 20);
   }
 
   if (gameOver) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 44px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(gameOver, canvas.width / 2, canvas.height / 2);
+    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+    ctx.font = '22px Arial';
+    ctx.fillText(statusEl.textContent, canvas.width / 2, canvas.height / 2 + 30);
   }
 
   requestAnimationFrame(draw);
 }
 
-function drawBase(b) {
-  const x = b.x * TILE;
-  const y = b.y * TILE;
-  ctx.fillStyle = b.team === 'blue' ? '#0d47a1' : '#b71c1c';
-  ctx.fillRect(x + 6, y + 6, TILE - 12, TILE - 12);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x + 6, y + 6, TILE - 12, TILE - 12);
+function drawCountry(c) {
+  const r = 18;
+  const isSelected = selected === c;
+  const isAttackable = selected && selected.team === 'blue' && selected.neighbors.includes(c) && c.team !== 'blue' && selected.armies > 1;
+
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = teamColor(c.team);
+  ctx.fill();
+
+  ctx.strokeStyle = isAttackable ? '#ff1744' : isSelected ? '#ffeb3b' : '#fff';
+  ctx.lineWidth = isSelected || isAttackable ? 4 : 2;
+  ctx.stroke();
+
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 16px Arial';
+  ctx.font = 'bold 12px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(c.name, c.x, c.y - r - 6);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(b.team === 'blue' ? 'B' : 'R', x + TILE / 2, y + TILE / 2);
+  ctx.fillText(c.armies, c.x, c.y + 1);
   ctx.textBaseline = 'alphabetic';
-  drawHpBar(b.hp, b.maxHp, x + 2, y + 2, TILE - 4, 5);
 }
 
-function drawUnit(u) {
-  const x = u.x * TILE;
-  const y = u.y * TILE;
-  const cx = x + TILE / 2;
-  const cy = y + TILE / 2;
-
-  ctx.fillStyle = u.team === 'blue' ? '#1976d2' : '#d32f2f';
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
-
-  if (u.type === 'tank') {
-    ctx.fillRect(x + 6, y + 6, TILE - 12, TILE - 12);
-    ctx.strokeRect(x + 6, y + 6, TILE - 12, TILE - 12);
-  } else {
-    ctx.beginPath();
-    ctx.arc(cx, cy, TILE / 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  if (u.moved && u.attacked) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.fillRect(x, y, TILE, TILE);
-  }
-
-  drawHpBar(u.hp, u.maxHp, x + 2, y + 2, TILE - 4, 5);
-}
-
-function drawHpBar(hp, max, x, y, w, h) {
-  const ratio = Math.max(0, hp / max);
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#f44336';
-  ctx.fillRect(x, y, w * ratio, h);
+function updateStatus(msg) {
+  statusEl.textContent = msg;
 }
 
 init();
