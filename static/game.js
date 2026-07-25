@@ -24,13 +24,14 @@ const RAW_COUNTRIES = [
 
 const countryById = new Map(RAW_COUNTRIES.map((c) => [c.id, c]));
 
-let canvas, ctx, statusEl, infoEl, endBtn, restartBtn;
+let canvas, ctx, statusEl, infoEl, logEl, endBtn, restartBtn;
 let ws;
 let state = null;
 let serverById = new Map();
 let myId = null;
 let myColor = null;
 let selected = null;
+let lastPhase = null;
 
 function teamColor(team) {
   if (team === 'blue') return '#1976d2';
@@ -77,11 +78,23 @@ function send(msg) {
   }
 }
 
+function addLog(text) {
+  if (!logEl) return;
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.textContent = text;
+  logEl.prepend(entry);
+  while (logEl.children.length > 20) {
+    logEl.removeChild(logEl.lastChild);
+  }
+}
+
 function init() {
   canvas = document.getElementById('map');
   ctx = canvas.getContext('2d');
   statusEl = document.getElementById('status');
   infoEl = document.getElementById('info');
+  logEl = document.getElementById('log');
   endBtn = document.getElementById('end-turn');
   restartBtn = document.getElementById('restart');
 
@@ -113,10 +126,17 @@ function connect() {
       state = msg.state;
       serverById = new Map(state.countries.map((c) => [c.id, c]));
       if (state.phase !== 'play') selected = null;
+      if (state.phase === 'select' && lastPhase && lastPhase !== 'select') {
+        logEl.innerHTML = '';
+      }
+      lastPhase = state.phase;
       updateUI();
     }
     if (msg.type === 'spectator') {
       infoEl.textContent = msg.message;
+    }
+    if (msg.type === 'event') {
+      addLog(msg.text);
     }
   };
 

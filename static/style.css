@@ -76,6 +76,27 @@ button.hidden {
   color: #ccc;
 }
 
+#log {
+  margin-top: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 0.85rem;
+  color: #ddd;
+}
+
+.log-entry {
+  padding: 3px 0;
+  border-bottom: 1px solid #222;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
 @media (max-width: 600px) {
   header h1 {
     font-size: 1rem;
