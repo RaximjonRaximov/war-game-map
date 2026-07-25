@@ -24,7 +24,7 @@ const RAW_COUNTRIES = [
 
 const countryById = new Map(RAW_COUNTRIES.map((c) => [c.id, c]));
 
-let statusEl, infoEl, logEl, endBtn, soloBtn, restartBtn;
+let statusEl, infoEl, logEl, endBtn, soloBtn, restartBtn, roomInput, joinRoomBtn;
 let ws;
 let state = null;
 let serverById = new Map();
@@ -32,6 +32,7 @@ let myId = null;
 let myColor = null;
 let selectedId = null;
 let lastPhase = null;
+let currentRoom = 'default';
 
 let map;
 let markers = {};
@@ -82,10 +83,20 @@ function init() {
   endBtn = document.getElementById('end-turn');
   soloBtn = document.getElementById('solo');
   restartBtn = document.getElementById('restart');
+  roomInput = document.getElementById('room-code');
+  joinRoomBtn = document.getElementById('join-room');
+
+  const params = new URLSearchParams(location.search);
+  currentRoom = params.get('room') || 'default';
+  roomInput.value = currentRoom;
 
   endBtn.addEventListener('click', () => send({ type: 'end_turn' }));
   soloBtn.addEventListener('click', () => send({ type: 'start_solo' }));
   restartBtn.addEventListener('click', () => send({ type: 'restart' }));
+  joinRoomBtn.addEventListener('click', () => {
+    const room = roomInput.value.trim() || 'default';
+    location.search = `?room=${encodeURIComponent(room)}`;
+  });
   window.addEventListener('beforeunload', () => { if (ws) ws.close(); });
   window.addEventListener('pagehide', () => { if (ws) ws.close(); });
 
@@ -199,7 +210,8 @@ function handleCountryClick(id) {
 
 function connect() {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${protocol}//${location.host}/ws`);
+  const wsUrl = `${protocol}//${location.host}/ws?room=${encodeURIComponent(currentRoom)}`;
+  ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
     statusEl.textContent = 'Connected — waiting for server';
